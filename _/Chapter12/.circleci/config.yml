@@ -1,0 +1,50 @@
+version : 2.1
+orbs:
+    snyk: snyk/snyk@0.0.8
+    heroku: circleci/heroku@0.0.10
+jobs:
+  build:
+    docker:
+      - image: circleci/node:12.13
+    working_directory: ~/repo
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "32:21:86:9e:c8:b6:4f:41:cb:c3:db:3b:73:92:15:c2"
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-dependencies-
+
+      - run: npm install
+
+      - snyk/scan
+      
+      - run: npm run build
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+      - deploy:
+          command: |
+            git push 
+  deploy:
+    executor: heroku/default
+    steps:
+      - checkout
+      - heroku/install
+      - heroku/deploy-via-git:
+        only-branch: master
+
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build:
+          context: build
+      - deploy:
+          context: deploy
+          requires:
+            - build
